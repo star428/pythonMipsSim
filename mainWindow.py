@@ -44,7 +44,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle('MipsSim')
 
     def LoadCode(self):
-        fname = QFileDialog.getOpenFileName(self, 'open file', '/home')
+        fname = QFileDialog.getOpenFileName(self, 'open file', '.')# 直接打开本文件夹
 
         if fname[0]:
 

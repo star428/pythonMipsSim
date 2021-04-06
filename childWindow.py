@@ -4,6 +4,8 @@ from PyQt5.QtGui import QIcon
 from PyQt5 import QtCore
 import sys
 
+from Lexical_analyzer import LexicalAnalyzer
+
 class SummaryWin(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -34,4 +36,5 @@ class CodeWin(QMainWindow):
         self.setWindowTitle("code")
 
     def getMessage(self, data):
-        self.TextEdit.setText(data)
+        self.analyser = LexicalAnalyzer(data)
+        self.TextEdit.setText(self.analyser.returnCodeAnalyseStr())
