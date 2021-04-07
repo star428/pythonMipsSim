@@ -58,8 +58,8 @@ class LexicalAnalyzer():
 
                     tempdict['Rt'] = tempInst
 
-            if tempdict['opCode'] == 'benz' or \
-                    tempdict['opCode'] == 'BENZ':
+            if tempdict['opCode'] == 'bnez' or \
+                    tempdict['opCode'] == 'BNEZ':
 
                     tempdict['Rs'] = tempInst[ : tempInst.find(',')]
                     tempdict['immediate'] = tempInst[tempInst.find(',') + 1 :]
@@ -86,10 +86,10 @@ if __name__ == '__main__':
 # str是自带的，如果使用str当变量名会导致冲突
     str1 = """lw $t0,10($t1)
 sw $t0,10($t1)
-BENZ R1,NAME
+BNEZ R1,NAME
 NAME:
 add $t0,$t1,$t2
-BENZ R2,func
+BNEZ R2,func
 add $t1,$t2,$t3
 sw $t0,50($t0)
 func:

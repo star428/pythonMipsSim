@@ -75,7 +75,7 @@ class IM():
         self.mem = None
 
     def initIM(self, instDict):
-        self.mem = instList # 仍旧是list，里面是dict
+        self.mem = instDict # 仍旧是list，里面是dict
 
     def getInst(self, address):
         return self.mem[address] # 按照index取出inst
@@ -87,7 +87,7 @@ class RegFile():
 
     def initRF(self):
         for index in range(32):
-            self.rf['$R%s' % index] = 0
+            self.rf['$R%s' % index] = 1
             self.rf['$F%s' % index] = 0
 
     def outData(self, regName):
@@ -106,6 +106,9 @@ class ALU():
 
         if IR['opCode'] == 'add' or IR['opCode'] == 'ADD':
             return A + B
+        # 虽然不执行但是还是得保证它有五段流水线
+        if IR['opCode'] == 'bnez' or IR['opCode'] == 'BNEZ':
+            return None
 
 class DM():
     def __init__(self):
