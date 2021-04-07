@@ -1,10 +1,10 @@
-lw $t0,10($t1)
-sw $t0,10($t1)
-BENZ R1,NAME
+lw $R0,10($R1)
+sw $R0,10($R1)
+BNEZ R1,NAME
 NAME:
-add $t0,$t1,$t2
-BENZ R2,func
-add $t1,$t2,$t3
-sw $t0,50($t0)
+add $R0,$R1,$R2
+BNEZ R2,func
+add $R1,$R2,$R3
+sw $R0,10($R0)
 func:
-add $s1,$s3,$s2
+add $R1,$R3,$R2

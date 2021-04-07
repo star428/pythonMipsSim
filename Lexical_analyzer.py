@@ -12,7 +12,7 @@ class LexicalAnalyzer():
         start = 0
         for end in range(len(self.strCode)):
             if self.strCode[end] == '\n':
-                strTemp = self.strCode[start:end]
+                strTemp = self.strCode[start:end].strip()
                 self.codeList.append(strTemp)
                 start = end + 1
 

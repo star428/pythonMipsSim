@@ -103,7 +103,7 @@ class CPU():
 
         elif self.EX_MEM_reg.IR['opCode'] == 'sw' or \
             self.EX_MEM_reg.IR['opCode'] == 'SW':
-            self.DM.writeData(self.EX_MEM_reg.B, self.EX_MEM_reg.ALUo)
+            self.DM.writeData(self.EX_MEM_reg.ALUo, self.EX_MEM_reg.B)
 
             temp_MEM_WB_LMD = None
             temp_MEM_WB_ALUo = None
@@ -214,25 +214,64 @@ class CPU():
 
     def testConflict(self):
         if self.ID_EX_reg.IR is not None and self.IF_ID_reg.IR is not None:
-            if self.ID_EX_reg.IR['opCode'] == 'lw' and self.IF_ID_reg.IR['opCode'] == 'lw':
+            # 解决首先是load在前的冲突
+            if self.ID_EX_reg.IR['opCode'].lower() == 'lw':
 
-                if self.ID_EX_reg.IR['Rt'] == self.IF_ID_reg.IR['Rs']:# IS不能乱用（惨痛教训
-                    return True
-                else:
-                    return False
-            else:
-                return False
+                if self.IF_ID_reg.IR['opCode'].lower() == 'lw' or \
+                    self.IF_ID_reg.IR['opCode'].lower() == 'bnez': # 后跟lw情况
+                    if self.IF_ID_reg.IR['Rs'] == self.ID_EX_reg.IR['Rt']:
+                        return True
+
+                if self.IF_ID_reg.IR['opCode'].lower() == 'sw' or \
+                    self.IF_ID_reg.IR['opCode'].lower() == 'add': # 后跟sw和add情况
+                    if self.IF_ID_reg.IR['Rs'] == self.ID_EX_reg.IR['Rt']:
+                        return True
+                    if self.IF_ID_reg.IR['Rt'] == self.ID_EX_reg.IR['Rt']:
+                        return True
+            # 解决首先是add在前的冲突
+            if self.ID_EX_reg.IR['opCode'].lower() == 'add':
+
+                if self.IF_ID_reg.IR['opCode'].lower() == 'lw' or \
+                    self.IF_ID_reg.IR['opCode'].lower() == 'bnez': # 后跟lw情况
+                    if self.IF_ID_reg.IR['Rs'] == self.ID_EX_reg.IR['Rd']:
+                        return True
+
+                if self.IF_ID_reg.IR['opCode'].lower() == 'sw' or \
+                    self.IF_ID_reg.IR['opCode'].lower() == 'add': # 后跟sw和add情况
+                    if self.IF_ID_reg.IR['Rs'] == self.ID_EX_reg.IR['Rd']:
+                        return True
+                    if self.IF_ID_reg.IR['Rt'] == self.ID_EX_reg.IR['Rd']:
+                        return True
 
 
         if self.EX_MEM_reg.IR is not None and self.IF_ID_reg.IR is not None:
-            if self.EX_MEM_reg.IR['opCode'] == 'lw' and self.IF_ID_reg.IR['opCode'] == 'lw':
+            if self.EX_MEM_reg.IR['opCode'].lower() == 'lw':
 
-                if self.EX_MEM_reg.IR['Rt'] == self.IF_ID_reg.IR['Rs']:
-                    return True
-                else:
-                    return False
-            else:
-                return False
+                if self.IF_ID_reg.IR['opCode'].lower() == 'lw' or \
+                    self.IF_ID_reg.IR['opCode'].lower() == 'bnez': # 后跟lw和beq情况
+                    if self.IF_ID_reg.IR['Rs'] == self.EX_MEM_reg.IR['Rt']:
+                        return True
+
+                if self.IF_ID_reg.IR['opCode'].lower() == 'sw' or \
+                    self.IF_ID_reg.IR['opCode'].lower() == 'add': # 后跟sw和add情况
+                    if self.IF_ID_reg.IR['Rs'] == self.EX_MEM_reg.IR['Rt']:
+                        return True
+                    if self.IF_ID_reg.IR['Rt'] == self.EX_MEM_reg.IR['Rt']:
+                        return True
+
+            if self.EX_MEM_reg.IR['opCode'].lower() == 'add':
+
+                if self.IF_ID_reg.IR['opCode'].lower() == 'lw' or \
+                    self.IF_ID_reg.IR['opCode'].lower() == 'bnez': # 后跟lw和beq情况
+                    if self.IF_ID_reg.IR['Rs'] == self.EX_MEM_reg.IR['Rd']:
+                        return True
+
+                if self.IF_ID_reg.IR['opCode'].lower() == 'sw' or \
+                    self.IF_ID_reg.IR['opCode'].lower() == 'add': # 后跟sw和add情况
+                    if self.IF_ID_reg.IR['Rs'] == self.EX_MEM_reg.IR['Rd']:
+                        return True
+                    if self.IF_ID_reg.IR['Rt'] == self.EX_MEM_reg.IR['Rd']:
+                        return True
 
         return False
 
@@ -244,17 +283,25 @@ class CPU():
         print('MEM/WB', self.MEM_WB_reg.out_reg())
 
 if __name__ == '__main__':
-    str1 = """lw $R1,10($R4)
-lw $R3,0($R1)
-add $R5,$R6,$R7
+    str1 = """lw $R0,10($R1)
+sw $R0,10($R1)
+BNEZ $R1,NAME
+NAME:
+add $R0,$R1,$R2
+BNEZ $R2,func
+add $R1,$R2,$R3
+sw $R0,10($R0)
+func:
+add $R1,$R3,$R2
 """
     anaylse = LexicalAnalyzer(str1)
     print(anaylse.codeList)
     print(anaylse.returnCodeAnalyseStr())
     cpu = CPU(anaylse.returnCodeAnalyse())
-    for i in range(9):
+    for i in range(14):
         cpu.runOneCycle()
         cpu.showStation()
+        print(cpu.clock , '--------------------------')
     print(cpu.RegFile.rf)
     print(cpu.DM.mem)
     # for i in range(3):
