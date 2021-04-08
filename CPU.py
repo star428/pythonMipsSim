@@ -19,6 +19,8 @@ class CPU():
 
         self.DM = DM()
 
+        self.isForwarding = True # 是否使用定向
+
         self.clock = 0
 
     def IF(self):
@@ -42,9 +44,23 @@ class CPU():
                 # 同时此时把相应取出来的inst清零，因为它不需要
                 temp_IF_ID_IR = None
 
-
             else:
                 temp_PC = self.PC.out_PC() + 1
+
+            # 解决重定向后bnez在add后情况的问题
+            if self.isForwarding:
+                if self.EX_MEM_reg.IR is not None:
+                    if self.IF_ID_reg.IR['opCode'].lower() == 'bnez' and \
+                        self.EX_MEM_reg.IR['opCode'].lower() == 'add':
+                        if self.EX_MEM_reg.IR['Rd'] == self.IF_ID_reg.IR['Rs']:
+
+                            if self.EX_MEM_reg.ALUo is not 0:
+                                for inst in self.IM.mem:
+                                    if inst['addressName'] == self.IF_ID_reg.IR['immediate']:
+                                        temp_PC = inst['address']
+                                        break
+
+                                temp_IF_ID_IR = None
 
         return temp_PC, temp_IF_ID_IR
 
@@ -139,6 +155,99 @@ class CPU():
         else: # beq和sw在这一步没有操作同时不用传递None
             pass
 
+    def forwarding(self):
+        """
+        # 也就是对所有冲突进行的相关消除操作，此时只用考虑打头是add或load即可
+        # 关于后面接bnez的情况很难考虑，所以把它的重定向直接集成在IF中
+        """
+
+        conflict = False # Load打头的时候是否插入一个Stall的判断
+
+        # 开始是add的相邻指令
+        if self.ID_EX_reg.IR is not None and self.EX_MEM_reg.IR is not None:
+            # add后接lw，sw，add
+            if self.EX_MEM_reg.IR['opCode'].lower() == 'add':
+                if self.ID_EX_reg.IR['opCode'].lower() == 'lw':
+                    if self.EX_MEM_reg.IR['Rd'] == self.ID_EX_reg.IR['Rs']:
+                        self.ID_EX_reg.A = self.EX_MEM_reg.ALUo
+
+                if self.ID_EX_reg.IR['opCode'].lower() == 'sw' or \
+                    self.ID_EX_reg.IR['opCode'].lower() == 'add':
+                    if self.EX_MEM_reg.IR['Rd'] == self.ID_EX_reg.IR['Rs']:
+                        self.ID_EX_reg.A = self.EX_MEM_reg.ALUo
+
+                    if self.EX_MEM_reg.IR['Rd'] == self.ID_EX_reg.IR['Rt']:
+                        self.ID_EX_reg.B = self.EX_MEM_reg.ALUo
+
+
+        # add后接bnez
+        if self.IF_ID_reg.IR is not None and self.ID_EX_reg.IR is not None:
+            if self.ID_EX_reg.IR['opCode'].lower() == 'add' and \
+                self.IF_ID_reg.IR['opCode'].lower() == 'bnez':
+                    if self.ID_EX_reg.IR['Rd'] == self.IF_ID_reg.IR['Rs']:
+                        conflict = True
+
+
+        # load后接lw，sw，add，bnez（插入气泡）
+        if self.IF_ID_reg.IR is not None and self.ID_EX_reg.IR is not None:
+            if self.ID_EX_reg.IR['opCode'].lower() == 'lw':
+                if self.IF_ID_reg.IR['opCode'].lower() == 'lw' or \
+                    self.IF_ID_reg.IR['opCode'].lower() == 'bnez':
+                    if self.ID_EX_reg.IR['Rt'] == self.IF_ID_reg.IR['Rs']:
+                        conflict = True
+
+                if self.IF_ID_reg.IR['opCode'].lower() == 'sw' or \
+                    self.IF_ID_reg.IR['opCode'].lower() == 'add':
+                    if self.ID_EX_reg.IR['Rt'] == self.IF_ID_reg.IR['Rs']:
+                        conflict = True
+                    if self.ID_EX_reg.IR['Rt'] == self.IF_ID_reg.IR['Rt']:
+                        conflict = True
+
+
+        # 对于bnez来说如果相邻前指令为load此时与无重定向并没有区别，这里再次插入一个stall
+        if self.IF_ID_reg.IR is not None and self.EX_MEM_reg.IR is not None:
+            if self.EX_MEM_reg.IR['opCode'].lower() == 'lw':
+                if self.IF_ID_reg.IR['opCode'].lower() == 'bnez':
+                    if self.EX_MEM_reg.IR['Rt'] == self.IF_ID_reg.IR['Rs']:
+                        conflict = True
+
+
+
+        # 重定向还要考虑下下一个周期（下第三个周期后已经写回没有相关冲突）
+        if self.ID_EX_reg.IR is not None and self.MEM_WB_reg.IR is not None:
+            # 考虑首是add的情况
+            if self.MEM_WB_reg.IR['opCode'].lower() == 'add':
+                if self.ID_EX_reg.IR['opCode'].lower() == 'lw':
+
+                    if self.MEM_WB_reg.IR['Rd'] == self.ID_EX_reg.IR['Rs']:
+                        self.ID_EX_reg.A = self.MEM_WB_reg.ALUo
+
+                if self.ID_EX_reg.IR['opCode'].lower() == 'sw' or \
+                    self.ID_EX_reg.IR['opCode'].lower() == 'add':
+
+                    if self.MEM_WB_reg.IR['Rd'] == self.ID_EX_reg.IR['Rs']:
+                        self.ID_EX_reg.A = self.MEM_WB_reg.ALUo
+
+                    if self.MEM_WB_reg.IR['Rd'] == self.ID_EX_reg.IR['Rt']:
+                        self.ID_EX_reg.B = self.MEM_WB_reg.ALUo
+
+            # 考虑首是load的情况
+            if self.MEM_WB_reg.IR['opCode'].lower() == 'lw':
+                if self.ID_EX_reg.IR['opCode'].lower() == 'lw':
+
+                    if self.MEM_WB_reg.IR['Rt'] == self.ID_EX_reg.IR['Rs']:
+                        self.ID_EX_reg.A = self.MEM_WB_reg.LMD
+
+                if self.ID_EX_reg.IR['opCode'].lower() == 'sw' or \
+                    self.ID_EX_reg.IR['opCode'].lower() == 'add':
+
+                    if self.MEM_WB_reg.IR['Rt'] == self.ID_EX_reg.IR['Rs']:
+                        self.ID_EX_reg.A = self.MEM_WB_reg.LMD
+
+                    if self.MEM_WB_reg.IR['Rt'] == self.ID_EX_reg.IR['Rt']:
+                        self.ID_EX_reg.B = self.MEM_WB_reg.LMD
+
+        return conflict
 
     def runOneCycle(self):
         """
@@ -166,7 +275,9 @@ class CPU():
         isConflict = False
         # 数据定义结束
 
-        # 拟定向用在这里
+        # 定向用在这里
+        if self.isForwarding:
+            isConflict = self.forwarding()
         # 定向结束
 
         # 各阶段执行开始
@@ -185,11 +296,13 @@ class CPU():
         if self.PC.out_PC() < len(self.IM.mem):
         # 能取到pc的时候就会取pc(取10000的时候代表没有代码了)
             temp_PC, temp_IF_ID_IR = self.IF()
-
         # 各阶段执行结束
-        isConflict = self.testConflict()
+
+        if not self.isForwarding:
+            isConflict = self.testConflict()
         # 以下代码块为流水线冲突检测部件，均在ID段检测
         # 冲突检测结束
+
         if isConflict:
             temp_PC = self.IF_ID_reg.NPC
             temp_IF_ID_IR = self.IF_ID_reg.IR
@@ -283,22 +396,16 @@ class CPU():
         print('MEM/WB', self.MEM_WB_reg.out_reg())
 
 if __name__ == '__main__':
-    str1 = """lw $R0,10($R1)
-sw $R0,10($R1)
-BNEZ $R1,NAME
-NAME:
-add $R0,$R1,$R2
-BNEZ $R2,func
-add $R1,$R2,$R3
-sw $R0,10($R0)
-func:
-add $R1,$R3,$R2
+    str1 = """add $R1,$R2,$R3
+bnez $R1,name
+name:
+add $R5,$R1,$R3
 """
     anaylse = LexicalAnalyzer(str1)
     print(anaylse.codeList)
     print(anaylse.returnCodeAnalyseStr())
     cpu = CPU(anaylse.returnCodeAnalyse())
-    for i in range(14):
+    for i in range(9):
         cpu.runOneCycle()
         cpu.showStation()
         print(cpu.clock , '--------------------------')

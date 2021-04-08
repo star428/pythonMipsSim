@@ -117,7 +117,7 @@ class DM():
 
     def initDM(self):
         for index in range(64):
-            self.mem[index] = 0
+            self.mem[index] = index
 
     def outData(self, address):
         return self.mem[address] # 这里的address是数值
