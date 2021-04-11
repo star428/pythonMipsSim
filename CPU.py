@@ -1,5 +1,6 @@
 from Unit import *
 from Lexical_analyzer import LexicalAnalyzer
+import copy
 
 class CPU():
     def __init__(self, codeList):
@@ -19,14 +20,28 @@ class CPU():
 
         self.DM = DM()
 
-        self.isForwarding = True # 是否使用定向
+        self.isForwarding = False # 是否使用定向
 
         self.clock = 0
+        # 新增统计信息
+        self.lw_count = 0
+        self.sw_count = 0
+        self.add_count = 0
+        self.bnez_count = 0
+
+        self.load_stop_count = 0
+        self.add_stop_count = 0
+        self.bnez_stop_count = 0
+
+        self.isComlete = False
+        self.isJump = False
+
+
 
     def IF(self):
         """
         # 各操作既不涉及定向也不涉及流水线互锁，只有简单的输入与输出
-        # 输入：pc与另一个beq的地址
+        # 输入：pc与另一个beq的地址(这里beq使用的为静态错误预测)
         # 输出：改变pc和if/id寄存器的状态（直接return，在总的逻辑里面再处理）
         """
         temp_IF_ID_IR = self.IM.getInst(self.PC.out_PC())
@@ -43,9 +58,12 @@ class CPU():
                         break
                 # 同时此时把相应取出来的inst清零，因为它不需要
                 temp_IF_ID_IR = None
+                self.isJump = True
+
 
             else:
                 temp_PC = self.PC.out_PC() + 1
+                self.isJump = False
 
             # 解决重定向后bnez在add后情况的问题
             if self.isForwarding:
@@ -61,6 +79,7 @@ class CPU():
                                         break
 
                                 temp_IF_ID_IR = None
+                                self.isJump = True
 
         return temp_PC, temp_IF_ID_IR
 
@@ -185,6 +204,7 @@ class CPU():
             if self.ID_EX_reg.IR['opCode'].lower() == 'add' and \
                 self.IF_ID_reg.IR['opCode'].lower() == 'bnez':
                     if self.ID_EX_reg.IR['Rd'] == self.IF_ID_reg.IR['Rs']:
+                        self.add_stop_count = self.add_stop_count + 1
                         conflict = True
 
 
@@ -194,13 +214,16 @@ class CPU():
                 if self.IF_ID_reg.IR['opCode'].lower() == 'lw' or \
                     self.IF_ID_reg.IR['opCode'].lower() == 'bnez':
                     if self.ID_EX_reg.IR['Rt'] == self.IF_ID_reg.IR['Rs']:
+                        self.load_stop_count = self.load_stop_count + 1
                         conflict = True
 
                 if self.IF_ID_reg.IR['opCode'].lower() == 'sw' or \
                     self.IF_ID_reg.IR['opCode'].lower() == 'add':
                     if self.ID_EX_reg.IR['Rt'] == self.IF_ID_reg.IR['Rs']:
+                        self.load_stop_count = self.load_stop_count + 1
                         conflict = True
                     if self.ID_EX_reg.IR['Rt'] == self.IF_ID_reg.IR['Rt']:
+                        self.load_stop_count = self.load_stop_count + 1
                         conflict = True
 
 
@@ -209,6 +232,7 @@ class CPU():
             if self.EX_MEM_reg.IR['opCode'].lower() == 'lw':
                 if self.IF_ID_reg.IR['opCode'].lower() == 'bnez':
                     if self.EX_MEM_reg.IR['Rt'] == self.IF_ID_reg.IR['Rs']:
+                        self.load_stop_count = self.load_stop_count + 1
                         conflict = True
 
 
@@ -325,6 +349,84 @@ class CPU():
 
         self.clock = self.clock + 1
 
+        # 放在最后检测当前的ID_EX寄存器里面的指令，因为所有执行过的指令都会流入这个寄存器
+        if self.ID_EX_reg.IR is not None:
+            if self.ID_EX_reg.IR['opCode'].lower() == "lw":
+                self.lw_count = self.lw_count + 1
+            if self.ID_EX_reg.IR['opCode'].lower() == "sw":
+                self.sw_count = self.sw_count + 1
+            if self.ID_EX_reg.IR['opCode'].lower() == "add":
+                self.add_count = self.add_count + 1
+            if self.ID_EX_reg.IR['opCode'].lower() == "bnez":
+                self.bnez_count = self.bnez_count + 1
+                if self.isJump == True:
+                    self.bnez_stop_count = self.bnez_stop_count + 1
+
+        if self.PC.out_PC() == 10000 and self.IF_ID_reg.IR is None and \
+            self.ID_EX_reg.IR is None and self.EX_MEM_reg.IR is None and \
+            self.MEM_WB_reg.IR is None:
+            self.isComlete = True
+
+    def runToEnd(self):
+
+        isContinue = True
+
+        while isContinue:
+            if self.PC.out_PC() == 10000 and self.IF_ID_reg.IR is None and \
+            self.ID_EX_reg.IR is None and self.EX_MEM_reg.IR is None and \
+            self.MEM_WB_reg.IR is None:
+                isContinue = False
+                return 0
+            self.runOneCycle()
+            self.showStation()
+
+    def runToPoint(self, addr, FrameName):
+
+        isContinue = True
+
+        if int(addr) > len(self.IM.mem):
+            print('address error')
+            return None
+        else:
+            while isContinue:
+
+                if FrameName.lower() == 'if':
+                    if self.PC.out_PC() == int(addr):
+                        isContinue = False
+
+                if FrameName.lower() == 'id':
+                    if self.IF_ID_reg.IR is not None:
+                        if self.IF_ID_reg.IR['address'] == int(addr):
+                            isContinue = False
+
+                if FrameName.lower() == 'ex':
+                    if self.ID_EX_reg.IR is not None:
+                        if self.ID_EX_reg.IR['address'] == int(addr):
+                            isContinue = False
+
+                if FrameName.lower() == 'mem':
+                    if self.EX_MEM_reg.IR is not None:
+                        if self.EX_MEM_reg.IR['address'] == int(addr):
+                            isContinue = False
+
+                if FrameName.lower() == 'wb':
+                    if self.MEM_WB_reg.IR is not None:
+                        if self.MEM_WB_reg.IR['address'] == int(addr):
+                            isContinue = False
+
+                pc = self.PC.out_PC()
+
+                if isContinue is False:
+                    cpu = copy.deepcopy(self)
+
+                self.runOneCycle()
+                self.showStation()
+
+                if isContinue is False:
+                    return cpu
+
+
+
     def testConflict(self):
         if self.ID_EX_reg.IR is not None and self.IF_ID_reg.IR is not None:
             # 解决首先是load在前的冲突
@@ -333,13 +435,16 @@ class CPU():
                 if self.IF_ID_reg.IR['opCode'].lower() == 'lw' or \
                     self.IF_ID_reg.IR['opCode'].lower() == 'bnez': # 后跟lw情况
                     if self.IF_ID_reg.IR['Rs'] == self.ID_EX_reg.IR['Rt']:
+                        self.load_stop_count = self.load_stop_count + 1
                         return True
 
                 if self.IF_ID_reg.IR['opCode'].lower() == 'sw' or \
                     self.IF_ID_reg.IR['opCode'].lower() == 'add': # 后跟sw和add情况
                     if self.IF_ID_reg.IR['Rs'] == self.ID_EX_reg.IR['Rt']:
+                        self.load_stop_count = self.load_stop_count + 1
                         return True
                     if self.IF_ID_reg.IR['Rt'] == self.ID_EX_reg.IR['Rt']:
+                        self.load_stop_count = self.load_stop_count + 1
                         return True
             # 解决首先是add在前的冲突
             if self.ID_EX_reg.IR['opCode'].lower() == 'add':
@@ -347,13 +452,16 @@ class CPU():
                 if self.IF_ID_reg.IR['opCode'].lower() == 'lw' or \
                     self.IF_ID_reg.IR['opCode'].lower() == 'bnez': # 后跟lw情况
                     if self.IF_ID_reg.IR['Rs'] == self.ID_EX_reg.IR['Rd']:
+                        self.add_stop_count = self.add_stop_count + 1
                         return True
 
                 if self.IF_ID_reg.IR['opCode'].lower() == 'sw' or \
                     self.IF_ID_reg.IR['opCode'].lower() == 'add': # 后跟sw和add情况
                     if self.IF_ID_reg.IR['Rs'] == self.ID_EX_reg.IR['Rd']:
+                        self.add_stop_count = self.add_stop_count + 1
                         return True
                     if self.IF_ID_reg.IR['Rt'] == self.ID_EX_reg.IR['Rd']:
+                        self.add_stop_count = self.add_stop_count + 1
                         return True
 
 
@@ -363,13 +471,16 @@ class CPU():
                 if self.IF_ID_reg.IR['opCode'].lower() == 'lw' or \
                     self.IF_ID_reg.IR['opCode'].lower() == 'bnez': # 后跟lw和beq情况
                     if self.IF_ID_reg.IR['Rs'] == self.EX_MEM_reg.IR['Rt']:
+                        self.load_stop_count = self.load_stop_count + 1
                         return True
 
                 if self.IF_ID_reg.IR['opCode'].lower() == 'sw' or \
                     self.IF_ID_reg.IR['opCode'].lower() == 'add': # 后跟sw和add情况
                     if self.IF_ID_reg.IR['Rs'] == self.EX_MEM_reg.IR['Rt']:
+                        self.load_stop_count = self.load_stop_count + 1
                         return True
                     if self.IF_ID_reg.IR['Rt'] == self.EX_MEM_reg.IR['Rt']:
+                        self.load_stop_count = self.load_stop_count + 1
                         return True
 
             if self.EX_MEM_reg.IR['opCode'].lower() == 'add':
@@ -377,13 +488,16 @@ class CPU():
                 if self.IF_ID_reg.IR['opCode'].lower() == 'lw' or \
                     self.IF_ID_reg.IR['opCode'].lower() == 'bnez': # 后跟lw和beq情况
                     if self.IF_ID_reg.IR['Rs'] == self.EX_MEM_reg.IR['Rd']:
+                        self.add_stop_count = self.add_stop_count + 1
                         return True
 
                 if self.IF_ID_reg.IR['opCode'].lower() == 'sw' or \
                     self.IF_ID_reg.IR['opCode'].lower() == 'add': # 后跟sw和add情况
                     if self.IF_ID_reg.IR['Rs'] == self.EX_MEM_reg.IR['Rd']:
+                        self.add_stop_count = self.add_stop_count + 1
                         return True
                     if self.IF_ID_reg.IR['Rt'] == self.EX_MEM_reg.IR['Rd']:
+                        self.add_stop_count = self.add_stop_count + 1
                         return True
 
         return False
@@ -395,20 +509,26 @@ class CPU():
         print('EX/MEM', self.EX_MEM_reg.out_reg())
         print('MEM/WB', self.MEM_WB_reg.out_reg())
 
+    def showDM(self):
+        print(self.DM.mem)
+
+    def showRegFile(self):
+        print(self.RegFile.rf)
+
 if __name__ == '__main__':
-    str1 = """add $R1,$R2,$R3
-bnez $R1,name
-name:
-add $R5,$R1,$R3
+    str1 = """lw $R1,10($R4)
+    lw $R3,0($R1)
+    add $R5,$R6,$R7
 """
     anaylse = LexicalAnalyzer(str1)
-    print(anaylse.codeList)
-    print(anaylse.returnCodeAnalyseStr())
+    # print(anaylse.codeList)
+    # print(anaylse.returnCodeAnalyseStr())
     cpu = CPU(anaylse.returnCodeAnalyse())
-    for i in range(9):
-        cpu.runOneCycle()
-        cpu.showStation()
-        print(cpu.clock , '--------------------------')
+    # for i in range(11):
+    #     cpu.runOneCycle()
+    #     cpu.showStation()
+    #     print(cpu.clock , '--------------------------')
+    cpu.runToPoint('1', 'mem')
     print(cpu.RegFile.rf)
     print(cpu.DM.mem)
     # for i in range(3):

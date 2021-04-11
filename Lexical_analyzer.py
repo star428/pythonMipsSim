@@ -81,6 +81,37 @@ class LexicalAnalyzer():
 
         return string
 
+    def returnStrCode(self):
+        # 直接将输入的str文本输出
+        return self.strCode
+
+def buildUpInst(dict):
+    # 从词法分析器中分析出的语句组装成一个str串
+    strOne = ""
+    if dict['opCode'].lower() == 'lw' or \
+        dict['opCode'].lower() == 'sw':
+        # if dict['addressName'] is not None:
+        #     strOne = strOne + dict['addressName'] + '\n'
+
+        strOne = strOne + dict['opCode'] + " " + dict['Rt'] + "," + \
+            str(dict['immediate']) + "(" + dict['Rs'] + ")"
+
+    if dict['opCode'].lower() == 'add':
+        # if dict['addressName'] is not None:
+        #     strOne = strOne + dict['addressName'] + '\n'
+
+        strOne = strOne + dict['opCode'] + " " + dict['Rd'] + "," + \
+            dict['Rs'] + "," + dict['Rt']
+
+    if dict['opCode'].lower() == 'bnez':
+        # if dict['addressName'] is not None:
+        #     strOne = strOne + dict['addressName'] + '\n'
+
+        strOne = strOne + dict['opCode'] + " " + dict['Rs'] + "," + \
+            str(dict['immediate'])
+
+    return strOne
+
 if __name__ == '__main__':
 
 # str是自带的，如果使用str当变量名会导致冲突
