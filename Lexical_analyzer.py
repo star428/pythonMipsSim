@@ -1,8 +1,8 @@
 class LexicalAnalyzer():
     def __init__(self, strCode):
         self.strCode = strCode
-        self.codeList = [] # 未分析的语句
-        self.codeDict = [] # 分析后的语句
+        self.codeList = []  # 未分析的语句
+        self.codeDict = []  # 分析后的语句
         self.divideIntoPer()
         self.analyseInstruction()
 
@@ -19,10 +19,10 @@ class LexicalAnalyzer():
     def analyseInstruction(self):
         # 将每一句翻译同时生成一个list里面每个dict都是相关语句的信息
 
-        ifPass = False # 跳过已经在地址表示符号时处理过的地址的吓一跳语句
+        ifPass = False  # 跳过已经在地址表示符号时处理过的地址的吓一跳语句
         for index in range(len(self.codeList)):
 
-            tempInst = self.codeList[index] # 取出单条指令
+            tempInst = self.codeList[index]  # 取出单条指令
             tempdict = {'address':None, 'addressName':None, 'opCode':None, \
             'Rs':None, 'Rt':None, 'Rd':None, 'immediate':None} # 储存单条指令的相关信息
 
@@ -30,46 +30,46 @@ class LexicalAnalyzer():
                 ifPass = False
                 continue
 
-            if tempInst.find(' ') == -1: # 意味着这个是地址的表示符号
+            if tempInst.find(' ') == -1:  # 意味着这个是地址的表示符号
                 tempdict['addressName'] = tempInst[:-1]
 
                 tempInst = self.codeList[index + 1]
                 ifPass = True
 
             tempdict['opCode'] = tempInst[:tempInst.find(' ')]
-            tempInst = tempInst[tempInst.find(' ') + 1:] # 现在的inst就是不包含opcode的inst
+            tempInst = tempInst[tempInst.find(' ') +
+                                1:]  # 现在的inst就是不包含opcode的inst
 
             if tempdict['opCode'] == 'lw' or \
                     tempdict['opCode'] == 'LW' or \
                     tempdict['opCode'] == 'sw' or \
                     tempdict['opCode'] == 'SW':
 
-                    tempdict['Rt'] = tempInst[ : tempInst.find(',')]
-                    tempdict['immediate'] = int(tempInst[tempInst.find(',') + 1: \
-                        tempInst.find('(')])
-                    tempdict['Rs'] = tempInst[tempInst.find('(') + 1 : -1]
+                tempdict['Rt'] = tempInst[:tempInst.find(',')]
+                tempdict['immediate'] = int(tempInst[tempInst.find(',') + 1: \
+                    tempInst.find('(')])
+                tempdict['Rs'] = tempInst[tempInst.find('(') + 1:-1]
 
             if tempdict['opCode'] == 'add' or \
                     tempdict['opCode'] == 'ADD':
 
-                    for reg in ['Rd', 'Rs']:
-                        tempdict[reg] = tempInst[ : tempInst.find(',')]
-                        tempInst = tempInst[tempInst.find(',') + 1 : ]
+                for reg in ['Rd', 'Rs']:
+                    tempdict[reg] = tempInst[:tempInst.find(',')]
+                    tempInst = tempInst[tempInst.find(',') + 1:]
 
-                    tempdict['Rt'] = tempInst
+                tempdict['Rt'] = tempInst
 
             if tempdict['opCode'] == 'bnez' or \
                     tempdict['opCode'] == 'BNEZ':
 
-                    tempdict['Rs'] = tempInst[ : tempInst.find(',')]
-                    tempdict['immediate'] = tempInst[tempInst.find(',') + 1 :]
+                tempdict['Rs'] = tempInst[:tempInst.find(',')]
+                tempdict['immediate'] = tempInst[tempInst.find(',') + 1:]
 
             self.codeDict.append(tempdict)
 
         # 最后根据分析的条目给出各个地址
         for index in range(len(self.codeDict)):
             self.codeDict[index]['address'] = index
-
 
     def returnCodeAnalyse(self):
         return self.codeDict
@@ -83,7 +83,14 @@ class LexicalAnalyzer():
 
     def returnStrCode(self):
         # 直接将输入的str文本输出
-        return self.strCode
+        str1 = ""
+        for dict in self.codeDict:
+            if dict['addressName'] is not None:
+                str1 = str1 + str(dict['addressName']) + "\n"
+            str1 = str1 + str(dict['address']) + " " + buildUpInst(dict) + "\n"
+
+        return str1
+
 
 def buildUpInst(dict):
     # 从词法分析器中分析出的语句组装成一个str串
@@ -112,9 +119,10 @@ def buildUpInst(dict):
 
     return strOne
 
+
 if __name__ == '__main__':
 
-# str是自带的，如果使用str当变量名会导致冲突
+    # str是自带的，如果使用str当变量名会导致冲突
     str1 = """lw $t0,10($t1)
 sw $t0,10($t1)
 BNEZ R1,NAME

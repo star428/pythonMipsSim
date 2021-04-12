@@ -174,10 +174,10 @@ class MainWindow(QMainWindow):
             self.errorWin = ErrorMessageWin()
             self.errorWin.show()
         else:
-            self.cpu.runToEnd()
+            cpu = self.cpu.runToEnd()
 
             self.winSummary.getMessage(self.cpu)
-            self.winPipeLine.getMessage(self.cpu)
+            self.winPipeLine.getMessage(cpu)
             self.winPipeLine.getMessageAfter(self.cpu)
             self.winRegFile.getMessage(self.cpu.RegFile.rf)
             self.winDataMem.getMessage(self.cpu.DM.mem)

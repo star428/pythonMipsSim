@@ -29,7 +29,7 @@ class SummaryWin(QMainWindow):
         else:
             str1 = str1 + "是否完成：" + "NO" + "\n"
 
-        str1 = str1 + "----------(统计能运行到EX段的指令)----------" + "\n"
+        str1 = str1 + "----------(统计能最终运行完的指令)----------" + "\n"
         str1 = str1 + "lw指令数：" + str(cpu.lw_count) + "\n"
         str1 = str1 + "sw指令数：" + str(cpu.sw_count) + "\n"
         str1 = str1 + "add指令数：" + str(cpu.add_count) + "\n"

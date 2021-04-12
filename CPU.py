@@ -359,8 +359,11 @@ class CPU():
                 self.add_count = self.add_count + 1
             if self.ID_EX_reg.IR['opCode'].lower() == "bnez":
                 self.bnez_count = self.bnez_count + 1
-                if self.isJump == True:
-                    self.bnez_stop_count = self.bnez_stop_count + 1
+
+
+        if self.isJump == True and isConflict == False:
+            self.bnez_stop_count = self.bnez_stop_count + 1
+            self.isJump = False
 
         if self.PC.out_PC() == 10000 and self.IF_ID_reg.IR is None and \
             self.ID_EX_reg.IR is None and self.EX_MEM_reg.IR is None and \
@@ -376,9 +379,14 @@ class CPU():
             self.ID_EX_reg.IR is None and self.EX_MEM_reg.IR is None and \
             self.MEM_WB_reg.IR is None:
                 isContinue = False
-                return 0
+                return cpu
             self.runOneCycle()
             self.showStation()
+            if self.PC.out_PC() == 10000 and self.IF_ID_reg.IR is None and \
+            self.ID_EX_reg.IR is None and self.EX_MEM_reg.IR is None and \
+            self.MEM_WB_reg.IR is not None:
+                cpu = copy.deepcopy(self)
+
 
     def runToPoint(self, addr, FrameName):
 
